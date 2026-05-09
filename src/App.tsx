@@ -17,7 +17,6 @@ const QUICK_QUAIL = [1, 2, 3, 5]
 function App() {
   const [page, setPage] = useState<Page>('pos')
   const [connected, setConnected] = useState(false)
-  const [printerName, setPrinterName] = useState('')
 
   const [tab, setTab] = useState<EggType>('white')
   const [mode, setMode] = useState<SellMode>('loose')
@@ -73,8 +72,7 @@ function App() {
 
   const handleConnect = async () => {
     try {
-      const n = await connectPrinter()
-      setPrinterName(n)
+      await connectPrinter()
       setConnected(true)
     } catch (e: any) {
       alert('Connection failed: ' + e.message)
@@ -84,7 +82,6 @@ function App() {
   const handleDisconnect = () => {
     disconnectPrinter()
     setConnected(false)
-    setPrinterName('')
   }
 
   const handlePrint = async () => {
