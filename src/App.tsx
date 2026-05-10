@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { connectPrinter, disconnectPrinter, isConnected, sendData } from './lib/bluetooth'
 import { buildReceipt } from './lib/receipt'
-import { saveBill, getBills, removeBill, exportBillsCSV, type Bill } from './lib/store'
+import { saveBill, getBills, removeBill, exportBillsCSV, syncQueue, type Bill } from './lib/store'
 import { signIn, signOut, getProfile, onAuthChange, type Profile } from './lib/auth'
-import { getSettings, saveSettings, type Settings } from './lib/settings'
+import { fetchSettings, saveSettings, getSettingsSync, type Settings } from './lib/settings'
 import type { User } from '@supabase/supabase-js'
 import './App.css'
 
@@ -101,7 +101,7 @@ function LoginPage() {
 function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) {
   const [page, setPage] = useState<Page>('pos')
   const [connected, setConnected] = useState(false)
-  const [settings, setSettings] = useState<Settings>(getSettings)
+  const [settings, setSettings] = useState<Settings>(getSettingsSync)
 
   const [tab, setTab] = useState<EggType>('white')
   const [mode, setMode] = useState<SellMode>('loose')
@@ -109,10 +109,16 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   const [rateStr, setRateStr] = useState('')
   const [activeField, setActiveField] = useState<Field>('qty')
   const [printing, setPrinting] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [undo, setUndo] = useState<{ bill: Bill; countdown: number } | null>(null)
   const undoTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const isAdmin = profile.role === 'admin'
+
+  useEffect(() => {
+    fetchSettings().then(setSettings)
+    syncQueue()
+  }, [])
 
   const getDefaultRate = () => {
     if (tab === 'quail') return settings.quailBoxRate
@@ -177,7 +183,8 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   }
 
   const handlePrint = async () => {
-    if (total === 0) return
+    if (total === 0 || saving) return
+    setSaving(true)
     try {
       const bill = await saveBill({
         type: tab,
@@ -200,7 +207,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
     } catch (e: any) {
       alert('Save failed: ' + e.message)
     }
-
+    setSaving(false)
     resetForm()
   }
 
@@ -232,7 +239,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
     return () => { if (undoTimer.current) clearInterval(undoTimer.current) }
   }, [])
 
-  const refreshSettings = () => setSettings(getSettings())
+  const refreshSettings = () => { fetchSettings().then(setSettings) }
 
   if (page === 'history') return <History onBack={() => setPage('pos')} settings={settings} isAdmin={isAdmin} />
   if (page === 'settings') return <SettingsPage onBack={() => { refreshSettings(); setPage('pos') }} isAdmin={isAdmin} onLogout={onLogout} />
@@ -306,8 +313,8 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
         <button className="numkey numkey-clear" onClick={() => handleKey('clear')}>Clear</button>
       </div>
 
-      <button onClick={handlePrint} disabled={printing || total === 0} className="btn-action">
-        {printing ? 'Printing...' : isConnected() ? 'Print Bill' : 'Save Bill'}
+      <button onClick={handlePrint} disabled={printing || saving || total === 0} className="btn-action">
+        {saving ? 'Saving...' : printing ? 'Printing...' : isConnected() ? 'Print Bill' : 'Save Bill'}
       </button>
 
       {/* Undo toast */}
@@ -322,8 +329,11 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
 }
 
 function SettingsPage({ onBack, isAdmin, onLogout }: { onBack: () => void; isAdmin: boolean; onLogout: () => void }) {
-  const [s, setS] = useState<Settings>(getSettings())
+  const [s, setS] = useState<Settings>(getSettingsSync())
   const [saved, setSaved] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
+
+  useEffect(() => { fetchSettings().then(setS) }, [])
 
   const update = (key: keyof Settings, val: string) => {
     const isNum = ['whiteEggRate','whiteTrayRate','brownEggRate','brownTrayRate','quailBoxRate'].includes(key)
@@ -331,10 +341,16 @@ function SettingsPage({ onBack, isAdmin, onLogout }: { onBack: () => void; isAdm
     setSaved(false)
   }
 
-  const handleSave = () => {
-    saveSettings(s)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    setSavingSettings(true)
+    try {
+      await saveSettings(s)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e: any) {
+      alert('Save failed: ' + e.message)
+    }
+    setSavingSettings(false)
   }
 
   const handleExport = async () => {
@@ -389,7 +405,7 @@ function SettingsPage({ onBack, isAdmin, onLogout }: { onBack: () => void; isAdm
           </div>
         )}
       </div>
-      {isAdmin && <button onClick={handleSave} className="btn-action btn-save">{saved ? '✓ Saved!' : 'Save Settings'}</button>}
+      {isAdmin && <button onClick={handleSave} disabled={savingSettings} className="btn-action btn-save">{saved ? '✓ Saved!' : savingSettings ? 'Saving...' : 'Save Settings'}</button>}
       <button onClick={onLogout} className="btn-action btn-logout">Logout</button>
     </div>
   )
@@ -399,9 +415,12 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
   const [bills, setBills] = useState<Bill[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  const loadBills = () => {
+    setLoading(true)
     getBills().then(b => { setBills(b); setLoading(false) })
-  }, [])
+  }
+
+  useEffect(() => { loadBills() }, [])
 
   const todayStr = new Date().toLocaleDateString('en-IN')
   const todayBills = bills.filter(b => new Date(b.created_at).toLocaleDateString('en-IN') === todayStr)
@@ -447,6 +466,7 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
       <div className="header">
         <button onClick={onBack} className="btn-header">← Back</button>
         <h1>Bills</h1>
+        <button onClick={loadBills} className="btn-header">↻ Refresh</button>
       </div>
       <div className="today-box">
         <div className="today-label">{isAdmin ? "Today's Total (All)" : "Today's Summary"}</div>
