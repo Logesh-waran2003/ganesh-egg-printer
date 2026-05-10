@@ -6,6 +6,8 @@ export interface Settings {
   brownEggRate: number
   brownTrayRate: number
   quailBoxRate: number
+  shopName: string
+  shopPhone: string
 }
 
 const DEFAULTS: Settings = {
@@ -14,6 +16,8 @@ const DEFAULTS: Settings = {
   brownEggRate: 8,
   brownTrayRate: 240,
   quailBoxRate: 40,
+  shopName: 'Ganesh Egg Centre',
+  shopPhone: '',
 }
 
 export function getSettings(): Settings {

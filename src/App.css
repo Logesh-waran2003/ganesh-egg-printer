@@ -20,7 +20,7 @@ body {
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 10px 12px;
   gap: 8px;
   position: relative;
 }
@@ -38,25 +38,20 @@ body {
   font-weight: 700;
 }
 
-.header-btns {
-  display: flex;
-  gap: 6px;
-}
-
 .btn-header {
-  padding: 6px 10px;
+  padding: 7px 12px;
   background: #fff;
   border: 1.5px solid #ddd;
   border-radius: 8px;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #444;
   cursor: pointer;
 }
 
-.btn-connected {
-  border-color: #22c55e;
-  color: #16a34a;
+.btn-settings {
+  padding: 7px 10px;
+  font-size: 1rem;
 }
 
 /* Tabs */
@@ -69,7 +64,7 @@ body {
 
 .tab {
   flex: 1;
-  padding: 10px;
+  padding: 9px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -106,69 +101,81 @@ body {
 .subtab-active {
   border-color: #2563eb;
   color: #2563eb;
-  background: #f0f5ff;
+  background: #eff6ff;
 }
 
 /* Quick actions */
 .quick {
   display: flex;
-  gap: 6px;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .quick-btn {
   flex: 1;
-  padding: 10px 0;
+  min-width: 40px;
+  padding: 9px 0;
   background: #fff;
   border: 1.5px solid #e5e5e5;
   border-radius: 8px;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: #333;
   cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
 }
 
 .quick-btn:active {
-  background: #f0f5ff;
+  background: #dbeafe;
   border-color: #2563eb;
+}
+
+.quick-btn-active {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1d4ed8;
 }
 
 /* Fields */
 .fields {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .field {
   background: #fff;
-  border: 2px solid #e5e5e5;
+  border: 2.5px solid #e5e5e5;
   border-radius: 10px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   cursor: pointer;
   min-width: 80px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 
 .field-small {
   min-width: 60px;
-  padding: 10px 12px;
+  padding: 8px 10px;
 }
 
 .field-active {
   border-color: #2563eb;
-  background: #f0f5ff;
+  background: #eff6ff;
+  box-shadow: 0 0 0 3px #bfdbfe;
 }
 
 .field-name {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 600;
   color: #888;
   text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .field-num {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .field-multiply {
@@ -192,6 +199,16 @@ body {
   min-height: 0;
 }
 
+.numpad-bottom {
+  display: flex;
+  gap: 5px;
+}
+
+.numpad-bottom .numkey {
+  flex: 1;
+  padding: 10px;
+}
+
 .numkey {
   display: flex;
   align-items: center;
@@ -200,25 +217,31 @@ body {
   border: 1.5px solid #e5e5e5;
   border-radius: 10px;
   color: #222;
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.08s;
 }
 
 .numkey:active {
-  background: #f0f0f0;
+  background: #e5e5e5;
 }
 
 .numkey-clear {
   color: #dc2626;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 700;
 }
 
-.numkey-del {
-  font-size: 0.85rem;
+.numkey-back {
+  font-size: 1.4rem;
   font-weight: 700;
   color: #666;
+}
+
+.numkey-dot {
+  font-size: 1.5rem;
+  font-weight: 700;
 }
 
 /* Action */
@@ -234,30 +257,46 @@ body {
 }
 
 .btn-action:active { background: #1d4ed8; }
-.btn-action:disabled { background: #ccc; color: #888; cursor: not-allowed; }
+.btn-action:disabled { background: #d4d4d4; color: #888; cursor: not-allowed; }
+
+.btn-save {
+  background: #16a34a;
+}
+.btn-save:active { background: #15803d; }
+
+.btn-logout {
+  background: #dc2626;
+  margin-top: 6px;
+}
+.btn-logout:active { background: #b91c1c; }
 
 /* Undo toast */
 .undo-toast {
   position: absolute;
-  bottom: 80px;
+  bottom: 76px;
   left: 12px;
   right: 12px;
-  background: #222;
+  background: #1e293b;
   color: #fff;
-  padding: 12px 16px;
-  border-radius: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   animation: slideUp 0.2s ease;
 }
 
 .undo-toast button {
-  background: none;
+  background: #ef4444;
   border: none;
-  color: #60a5fa;
+  color: #fff;
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -272,7 +311,7 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .setting-group {
@@ -283,8 +322,9 @@ body {
 
 .setting-title {
   font-weight: 700;
-  font-size: 0.9rem;
-  margin-bottom: 10px;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  color: #333;
 }
 
 .setting-row {
@@ -292,22 +332,44 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 8px 0;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #f5f5f5;
 }
 
 .setting-row label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #555;
 }
 
 .setting-row input {
-  width: 80px;
-  padding: 8px;
+  width: 100px;
+  padding: 8px 10px;
   border: 1.5px solid #ddd;
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   text-align: right;
+}
+
+.setting-row input[type="text"],
+.setting-row input[type="tel"] {
+  width: 150px;
+  text-align: left;
+}
+
+.btn-export {
+  width: 100%;
+  padding: 10px;
+  background: #f5f5f5;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
+
+.btn-export:active {
+  background: #e5e5e5;
 }
 
 /* History */
@@ -319,22 +381,31 @@ body {
 }
 
 .today-label {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #888;
   text-transform: uppercase;
   font-weight: 600;
 }
 
 .today-amount {
-  font-size: 1.8rem;
+  font-size: 2rem;
   font-weight: 700;
   color: #16a34a;
   margin: 2px 0;
 }
 
 .today-count {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #888;
+}
+
+.today-stats {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: #555;
+  font-weight: 600;
 }
 
 .bill-list {
@@ -342,35 +413,54 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+}
+
+.bill-group {
+  margin-bottom: 8px;
+}
+
+.bill-date-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 4px 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.bill-date-summary {
+  color: #16a34a;
+  font-weight: 600;
 }
 
 .bill-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: #fff;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 8px;
+  margin-bottom: 2px;
+}
+
+.bill-no {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2563eb;
+  width: 36px;
 }
 
 .bill-time {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #888;
-  width: 60px;
-}
-
-.bill-type {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: capitalize;
-  color: #555;
-  width: 40px;
+  width: 65px;
 }
 
 .bill-info {
   flex: 1;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #555;
 }
 
@@ -379,8 +469,129 @@ body {
   font-size: 1rem;
 }
 
+.btn-reprint {
+  padding: 5px 10px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #555;
+  cursor: pointer;
+}
+
+.btn-reprint:active {
+  background: #e5e5e5;
+}
+
 .empty {
   text-align: center;
   color: #aaa;
   padding: 40px;
+}
+
+/* Login */
+.login-page {
+  justify-content: center;
+  align-items: center;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+}
+
+.login-box h1 {
+  font-size: 1.3rem;
+  margin-bottom: 4px;
+}
+
+.login-subtitle {
+  color: #888;
+  font-size: 0.85rem;
+  margin-bottom: 20px;
+}
+
+.login-box form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.login-box input {
+  padding: 12px 14px;
+  border: 1.5px solid #ddd;
+  border-radius: 10px;
+  font-size: 1rem;
+  width: 100%;
+}
+
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.eye-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.login-error {
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Loading */
+.loading {
+  justify-content: center;
+  align-items: center;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+/* Status bar */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-badge {
+  flex: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.printer-status {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.printer-on {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.printer-off {
+  background: #fef3c7;
+  color: #92400e;
 }
