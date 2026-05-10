@@ -250,7 +250,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
 
       {/* User info + printer */}
       <div className="status-bar">
-        <span className="user-badge">{profile.name} ({profile.role})</span>
+        <span className="user-badge">{profile.name}{isAdmin ? ' (admin)' : ''}</span>
         {connected ? (
           <button onClick={handleDisconnect} className="printer-status printer-on">Printer ✓</button>
         ) : (
