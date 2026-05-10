@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { connectPrinter, disconnectPrinter, isConnected, sendData } from './lib/bluetooth'
 import { buildReceipt } from './lib/receipt'
-import { saveBill, getBills, removeBill, exportBillsCSV, syncQueue, type Bill } from './lib/store'
+import { saveBill, getBills, removeBill, exportBillsCSV, syncQueue, getPendingCount, type Bill } from './lib/store'
 import { signIn, signOut, getProfile, onAuthChange, type Profile } from './lib/auth'
 import { fetchSettings, saveSettings, getSettingsSync, type Settings } from './lib/settings'
 import type { User } from '@supabase/supabase-js'
@@ -118,6 +118,11 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   useEffect(() => {
     fetchSettings().then(setSettings)
     syncQueue()
+    // Periodic sync retry
+    const interval = setInterval(() => { if (navigator.onLine) syncQueue() }, 30000)
+    const onOnline = () => syncQueue()
+    window.addEventListener('online', onOnline)
+    return () => { clearInterval(interval); window.removeEventListener('online', onOnline) }
   }, [])
 
   const getDefaultRate = () => {
@@ -240,6 +245,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   }, [])
 
   const refreshSettings = () => { fetchSettings().then(setSettings) }
+  const pending = getPendingCount()
 
   if (page === 'history') return <History onBack={() => setPage('pos')} settings={settings} isAdmin={isAdmin} />
   if (page === 'settings') return <SettingsPage onBack={() => { refreshSettings(); setPage('pos') }} isAdmin={isAdmin} onLogout={onLogout} />
@@ -252,12 +258,17 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
       <div className="header">
         <h1>{settings.shopName}</h1>
         <button onClick={() => setPage('history')} className="btn-header">Bills</button>
-        <button onClick={() => setPage('settings')} className="btn-header btn-settings">⚙</button>
+        {isAdmin ? (
+          <button onClick={() => setPage('settings')} className="btn-header btn-settings">⚙</button>
+        ) : (
+          <button onClick={onLogout} className="btn-header btn-logout-sm">Logout</button>
+        )}
       </div>
 
-      {/* User info + printer */}
+      {/* Status bar */}
       <div className="status-bar">
         <span className="user-badge">{profile.name}{isAdmin ? ' (admin)' : ''}</span>
+        {pending > 0 && <span className="pending-badge">{pending} pending</span>}
         {connected ? (
           <button onClick={handleDisconnect} className="printer-status printer-on">Printer ✓</button>
         ) : (
@@ -320,7 +331,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
       {/* Undo toast */}
       {undo && (
         <div className="undo-toast">
-          <span>Bill #{undo.bill.bill_no} saved — ₹{undo.bill.total}</span>
+          <span>Bill {undo.bill.bill_no ? `#${undo.bill.bill_no}` : ''} saved — ₹{undo.bill.total}</span>
           <button onClick={handleUndo}>Undo ({undo.countdown}s)</button>
         </div>
       )}
@@ -328,7 +339,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   )
 }
 
-function SettingsPage({ onBack, isAdmin, onLogout }: { onBack: () => void; isAdmin: boolean; onLogout: () => void }) {
+function SettingsPage({ onBack, isAdmin: _, onLogout }: { onBack: () => void; isAdmin: boolean; onLogout: () => void }) {
   const [s, setS] = useState<Settings>(getSettingsSync())
   const [saved, setSaved] = useState(false)
   const [savingSettings, setSavingSettings] = useState(false)
@@ -372,40 +383,31 @@ function SettingsPage({ onBack, isAdmin, onLogout }: { onBack: () => void; isAdm
         <h1>Settings</h1>
       </div>
       <div className="settings-list">
-        {isAdmin && (
-          <>
-            <div className="setting-group">
-              <div className="setting-title">Shop Details</div>
-              <div className="setting-row"><label>Shop Name</label><input type="text" value={s.shopName} onChange={e => update('shopName', e.target.value)} /></div>
-              <div className="setting-row"><label>Phone (for receipt)</label><input type="tel" value={s.shopPhone} onChange={e => update('shopPhone', e.target.value)} placeholder="98xxxxxxxx" /></div>
-            </div>
-            <div className="setting-group">
-              <div className="setting-title">White Eggs</div>
-              <div className="setting-row"><label>Per Egg (₹)</label><input type="number" value={s.whiteEggRate} onChange={e => update('whiteEggRate', e.target.value)} /></div>
-              <div className="setting-row"><label>Per Tray (₹)</label><input type="number" value={s.whiteTrayRate} onChange={e => update('whiteTrayRate', e.target.value)} /></div>
-            </div>
-            <div className="setting-group">
-              <div className="setting-title">Brown Eggs</div>
-              <div className="setting-row"><label>Per Egg (₹)</label><input type="number" value={s.brownEggRate} onChange={e => update('brownEggRate', e.target.value)} /></div>
-              <div className="setting-row"><label>Per Tray (₹)</label><input type="number" value={s.brownTrayRate} onChange={e => update('brownTrayRate', e.target.value)} /></div>
-            </div>
-            <div className="setting-group">
-              <div className="setting-title">Kaadai Eggs</div>
-              <div className="setting-row"><label>Per Box - 12 eggs (₹)</label><input type="number" value={s.quailBoxRate} onChange={e => update('quailBoxRate', e.target.value)} /></div>
-            </div>
-            <div className="setting-group">
-              <div className="setting-title">Data</div>
-              <button onClick={handleExport} className="btn-export">Download All Bills (CSV)</button>
-            </div>
-          </>
-        )}
-        {!isAdmin && (
-          <div className="setting-group">
-            <p style={{ color: '#888', fontSize: '0.85rem' }}>Only admin can change settings.</p>
-          </div>
-        )}
+        <div className="setting-group">
+          <div className="setting-title">Shop Details</div>
+          <div className="setting-row"><label>Shop Name</label><input type="text" value={s.shopName} onChange={e => update('shopName', e.target.value)} /></div>
+          <div className="setting-row"><label>Phone (for receipt)</label><input type="tel" value={s.shopPhone} onChange={e => update('shopPhone', e.target.value)} placeholder="98xxxxxxxx" /></div>
+        </div>
+        <div className="setting-group">
+          <div className="setting-title">White Eggs</div>
+          <div className="setting-row"><label>Per Egg (₹)</label><input type="number" value={s.whiteEggRate} onChange={e => update('whiteEggRate', e.target.value)} /></div>
+          <div className="setting-row"><label>Per Tray (₹)</label><input type="number" value={s.whiteTrayRate} onChange={e => update('whiteTrayRate', e.target.value)} /></div>
+        </div>
+        <div className="setting-group">
+          <div className="setting-title">Brown Eggs</div>
+          <div className="setting-row"><label>Per Egg (₹)</label><input type="number" value={s.brownEggRate} onChange={e => update('brownEggRate', e.target.value)} /></div>
+          <div className="setting-row"><label>Per Tray (₹)</label><input type="number" value={s.brownTrayRate} onChange={e => update('brownTrayRate', e.target.value)} /></div>
+        </div>
+        <div className="setting-group">
+          <div className="setting-title">Kaadai Eggs</div>
+          <div className="setting-row"><label>Per Box - 12 eggs (₹)</label><input type="number" value={s.quailBoxRate} onChange={e => update('quailBoxRate', e.target.value)} /></div>
+        </div>
+        <div className="setting-group">
+          <div className="setting-title">Data</div>
+          <button onClick={handleExport} className="btn-export">Download All Bills (CSV)</button>
+        </div>
       </div>
-      {isAdmin && <button onClick={handleSave} disabled={savingSettings} className="btn-action btn-save">{saved ? '✓ Saved!' : savingSettings ? 'Saving...' : 'Save Settings'}</button>}
+      <button onClick={handleSave} disabled={savingSettings} className="btn-action btn-save">{saved ? '✓ Saved!' : savingSettings ? 'Saving...' : 'Save Settings'}</button>
       <button onClick={onLogout} className="btn-action btn-logout">Logout</button>
     </div>
   )
@@ -422,6 +424,7 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
 
   useEffect(() => { loadBills() }, [])
 
+  const pending = getPendingCount()
   const todayStr = new Date().toLocaleDateString('en-IN')
   const todayBills = bills.filter(b => new Date(b.created_at).toLocaleDateString('en-IN') === todayStr)
 
@@ -477,7 +480,8 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
         </div>
       </div>
       <div className="bill-list">
-        {bills.length === 0 && <p className="empty">No bills yet</p>}
+        {pending > 0 && <div className="pending-bar">{pending} bill{pending > 1 ? 's' : ''} waiting to sync</div>}
+        {bills.length === 0 && pending === 0 && <p className="empty">No bills yet</p>}
         {Object.entries(grouped).map(([date, dateBills]) => {
           const summary = calcSummary(dateBills)
           return (
