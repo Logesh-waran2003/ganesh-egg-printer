@@ -231,7 +231,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
 
   const startUndo = (bill: Bill) => {
     if (undoTimer.current) clearInterval(undoTimer.current)
-    setUndo({ bill, countdown: 6 })
+    setUndo({ bill, countdown: 3 })
     undoTimer.current = setInterval(() => {
       setUndo(prev => {
         if (!prev || prev.countdown <= 1) {
