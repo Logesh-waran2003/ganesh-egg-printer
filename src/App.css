@@ -567,11 +567,11 @@ body {
   transform: translateY(-50%);
   background: none;
   border: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #2563eb;
+  color: #888;
   cursor: pointer;
-  padding: 6px 8px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
 }
 
 .login-error {
