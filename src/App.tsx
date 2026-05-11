@@ -275,11 +275,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
       <div className="header">
         <h1>{settings.shopName}</h1>
         <button onClick={() => setPage('history')} className="btn-header">Bills</button>
-        {isAdmin ? (
-          <button onClick={() => setPage('settings')} className="btn-header btn-settings">⚙</button>
-        ) : (
-          <button onClick={onLogout} className="btn-header btn-logout-sm">Logout</button>
-        )}
+        <button onClick={() => setPage('settings')} className="btn-header btn-settings">⚙</button>
       </div>
 
       {/* Status bar */}
