@@ -3,7 +3,7 @@ import { connectPrinter, disconnectPrinter, isConnected, sendData } from './lib/
 import { buildReceipt } from './lib/receipt'
 import { saveBill, getBills, removeBill, exportBillsCSV, syncQueue, getPendingCount, type Bill } from './lib/store'
 import { signIn, signOut, getProfile, onAuthChange, type Profile } from './lib/auth'
-import { fetchSettings, saveSettings, getSettingsSync, type Settings, type Preset } from './lib/settings'
+import { fetchSettings, saveSettings, getSettingsSync, type Settings } from './lib/settings'
 import type { User } from '@supabase/supabase-js'
 import './App.css'
 
