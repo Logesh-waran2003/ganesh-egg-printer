@@ -3,19 +3,20 @@ import { connectPrinter, disconnectPrinter, isConnected, sendData } from './lib/
 import { buildReceipt } from './lib/receipt'
 import { saveBill, getBills, removeBill, exportBillsCSV, syncQueue, getPendingCount, type Bill } from './lib/store'
 import { signIn, signOut, getProfile, onAuthChange, type Profile } from './lib/auth'
-import { fetchSettings, saveSettings, getSettingsSync, type Settings } from './lib/settings'
+import { fetchSettings, saveSettings, getSettingsSync, type Settings, type Preset } from './lib/settings'
 import type { User } from '@supabase/supabase-js'
 import './App.css'
 
 type EggType = 'white' | 'brown' | 'quail'
 type SellMode = 'loose' | 'tray'
 type Page = 'pos' | 'history' | 'settings'
-type Field = 'qty' | 'rate'
+type Field = 'qty' | 'rate' | 'total'
 
 const QUICK_LOOSE = [1, 2, 3, 6, 10, 12, 15]
 const QUICK_TRAY = [1, 2, 3, 5]
 const QUICK_QUAIL = [1, 2, 3, 5]
 const MAX_DIGITS = 4
+const MAX_TOTAL_DIGITS = 5
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -120,12 +121,12 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   const [mode, setMode] = useState<SellMode>('loose')
   const [qty, setQty] = useState('')
   const [rateStr, setRateStr] = useState('')
+  const [totalStr, setTotalStr] = useState('')
   const [activeField, setActiveField] = useState<Field>('qty')
   const [printing, setPrinting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [undo, setUndo] = useState<{ bill: Bill; countdown: number } | null>(null)
   const undoTimer = useRef<ReturnType<typeof setInterval> | null>(null)
-
   const isAdmin = profile.role === 'admin'
 
   useEffect(() => {
@@ -145,33 +146,36 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   }
 
   const rate = Number(rateStr) || getDefaultRate()
-  const total = Math.round((Number(qty) || 0) * rate)
+  const total = totalStr ? Number(totalStr) : Math.round((Number(qty) || 0) * rate)
 
   const handleKey = useCallback((key: string) => {
-    const current = activeField === 'qty' ? qty : rateStr
+    const current = activeField === 'qty' ? qty : activeField === 'rate' ? rateStr : totalStr
     let next: string
     if (key === 'clear') next = ''
     else if (key === 'back') next = current.slice(0, -1)
     else if (key === '.') {
-      if (activeField === 'qty') return
+      if (activeField === 'qty' || activeField === 'total') return
       if (current.includes('.')) return
       next = current + '.'
     } else {
-      if (current.length >= MAX_DIGITS) return
+      if (current.length >= (activeField === 'total' ? MAX_TOTAL_DIGITS : MAX_DIGITS)) return
       next = current + key
     }
-    if (activeField === 'qty') setQty(next)
-    else setRateStr(next)
-  }, [activeField, qty, rateStr])
+    if (activeField === 'qty') { setQty(next); setTotalStr('') }
+    else if (activeField === 'rate') { setRateStr(next); setTotalStr('') }
+    else { setTotalStr(next) }
+  }, [activeField, qty, rateStr, totalStr])
 
   const handleQuick = (val: number) => {
     setQty(val.toString())
+    setTotalStr('')
     setActiveField('qty')
   }
 
   const resetForm = () => {
     setQty('')
     setRateStr('')
+    setTotalStr('')
     setActiveField('qty')
   }
 
@@ -305,11 +309,24 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
       )}
 
       {/* Quick actions */}
-      <div className="quick">
-        {quickValues.map(v => (
-          <button key={v} className={`quick-btn ${qty === v.toString() ? 'quick-btn-active' : ''}`} onClick={() => handleQuick(v)}>{v}</button>
-        ))}
-      </div>
+      {tab === 'white' && mode === 'loose' && settings.presets.length > 0 ? (
+        <div className="quick">
+          {settings.presets.map((p, i) => (
+            <button key={`p${i}`} className={`preset-btn ${qty === p.qty.toString() && totalStr === p.total.toString() ? 'preset-btn-active' : ''}`} onClick={() => { setQty(p.qty.toString()); setTotalStr(p.total.toString()); setActiveField('qty') }}>
+              {p.qty} → ₹{p.total}
+            </button>
+          ))}
+          {QUICK_LOOSE.filter(v => !settings.presets.some(p => p.qty === v)).slice(-2).map(v => (
+            <button key={v} className={`quick-btn ${qty === v.toString() && !totalStr ? 'quick-btn-active' : ''}`} onClick={() => handleQuick(v)}>{v}</button>
+          ))}
+        </div>
+      ) : (
+        <div className="quick">
+          {quickValues.map(v => (
+            <button key={v} className={`quick-btn ${qty === v.toString() ? 'quick-btn-active' : ''}`} onClick={() => handleQuick(v)}>{v}</button>
+          ))}
+        </div>
+      )}
 
       {/* Fields */}
       <div className="fields">
@@ -322,7 +339,11 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
           <div className="field-name">Rate</div>
           <div className="field-num">₹{rateStr || getDefaultRate()}</div>
         </div>
-        <div className="field-equals">= ₹{total}</div>
+        <div className="field-multiply">=</div>
+        <div className={`field field-small ${activeField === 'total' ? 'field-active' : ''}`} onClick={() => { setTotalStr(''); setActiveField('total') }}>
+          <div className="field-name">Total</div>
+          <div className="field-num">₹{activeField === 'total' ? (totalStr || '0') : (totalStr || total)}</div>
+        </div>
       </div>
 
       {/* Numpad */}
@@ -414,6 +435,16 @@ function SettingsPage({ onBack, isAdmin: _, onLogout }: { onBack: () => void; is
         <div className="setting-group">
           <div className="setting-title">Kaadai Eggs</div>
           <div className="setting-row"><label>Per Box - 12 eggs (₹)</label><input type="number" value={s.quailBoxRate} onChange={e => update('quailBoxRate', e.target.value)} /></div>
+        </div>
+        <div className="setting-group">
+          <div className="setting-title">Quick Presets (White Loose)</div>
+          {s.presets.map((p, i) => (
+            <div key={i} className="setting-row preset-row">
+              <input type="number" value={p.qty || ''} placeholder="Qty" onChange={e => { const presets = [...s.presets]; presets[i] = { ...presets[i], qty: Number(e.target.value) || 0 }; setS({ ...s, presets }); setSaved(false) }} />
+              <span>→ ₹</span>
+              <input type="number" value={p.total || ''} placeholder="Total" onChange={e => { const presets = [...s.presets]; presets[i] = { ...presets[i], total: Number(e.target.value) || 0 }; setS({ ...s, presets }); setSaved(false) }} />
+            </div>
+          ))}
         </div>
         <div className="setting-group">
           <div className="setting-title">Data</div>

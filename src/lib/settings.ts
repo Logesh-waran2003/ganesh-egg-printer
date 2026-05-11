@@ -1,5 +1,10 @@
 import { supabase } from './supabase'
 
+export interface Preset {
+  qty: number
+  total: number
+}
+
 export interface Settings {
   whiteEggRate: number
   whiteTrayRate: number
@@ -8,16 +13,22 @@ export interface Settings {
   quailBoxRate: number
   shopName: string
   shopPhone: string
+  presets: Preset[]
 }
 
 const DEFAULTS: Settings = {
-  whiteEggRate: 7,
-  whiteTrayRate: 210,
-  brownEggRate: 8,
-  brownTrayRate: 240,
+  whiteEggRate: 6,
+  whiteTrayRate: 175,
+  brownEggRate: 10,
+  brownTrayRate: 300,
   quailBoxRate: 40,
   shopName: 'Ganesh Egg Centre',
   shopPhone: '',
+  presets: [
+    { qty: 17, total: 100 },
+    { qty: 15, total: 90 },
+    { qty: 10, total: 60 },
+  ],
 }
 
 const CACHE_KEY = 'gec_settings_cache'
@@ -48,6 +59,7 @@ export async function fetchSettings(): Promise<Settings> {
     quailBoxRate: data.quail_box_rate,
     shopName: data.shop_name,
     shopPhone: data.shop_phone,
+    presets: data.presets || DEFAULTS.presets,
   }
   cacheSettings(s)
   return s
@@ -64,6 +76,7 @@ export async function saveSettings(s: Settings): Promise<void> {
       quail_box_rate: s.quailBoxRate,
       shop_name: s.shopName,
       shop_phone: s.shopPhone,
+      presets: s.presets,
       updated_at: new Date().toISOString(),
     })
     .eq('id', 'default')
