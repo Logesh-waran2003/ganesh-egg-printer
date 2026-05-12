@@ -103,3 +103,43 @@ export function exportBillsCSV(bills: Bill[]): string {
 export function getPendingCount(): number {
   return getQueue().length
 }
+
+export interface BillEdit {
+  id: number
+  bill_id: number
+  edited_by: string
+  old_qty: number
+  old_rate: number
+  old_total: number
+  new_qty: number
+  new_rate: number
+  new_total: number
+  edited_at: string
+}
+
+export async function editBill(bill: Bill, newQty: number, newRate: number, newTotal: number): Promise<Bill> {
+  // Log the original values first
+  await supabase.from('bill_edits').insert({
+    bill_id: bill.id,
+    old_qty: bill.qty, old_rate: bill.rate, old_total: bill.total,
+    new_qty: newQty, new_rate: newRate, new_total: newTotal,
+  })
+
+  const { data, error } = await supabase
+    .from('bills')
+    .update({ qty: newQty, rate: newRate, total: newTotal })
+    .eq('id', bill.id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function getBillEdits(): Promise<BillEdit[]> {
+  const { data } = await supabase
+    .from('bill_edits')
+    .select('*')
+    .order('edited_at', { ascending: false })
+  return data || []
+}

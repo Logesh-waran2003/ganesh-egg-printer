@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { connectPrinter, disconnectPrinter, isConnected, sendData } from './lib/bluetooth'
 import { buildReceipt } from './lib/receipt'
-import { saveBill, getBills, removeBill, exportBillsCSV, syncQueue, getPendingCount, type Bill } from './lib/store'
+import { saveBill, getBills, removeBill, editBill, getBillEdits, exportBillsCSV, syncQueue, getPendingCount, type Bill, type BillEdit } from './lib/store'
 import { signIn, signOut, getProfile, onAuthChange, type Profile } from './lib/auth'
 import { fetchSettings, saveSettings, getSettingsSync, type Settings } from './lib/settings'
 import type { User } from '@supabase/supabase-js'
@@ -126,6 +126,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   const [printing, setPrinting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [undo, setUndo] = useState<{ bill: Bill; countdown: number } | null>(null)
+  const [editBillTarget, setEditBillTarget] = useState<Bill | null>(null)
   const undoTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const isAdmin = profile.role === 'admin'
 
@@ -264,7 +265,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
   const refreshSettings = () => { fetchSettings().then(setSettings) }
   const pending = getPendingCount()
 
-  if (page === 'history') return <History onBack={() => setPage('pos')} settings={settings} isAdmin={isAdmin} />
+  if (page === 'history') return <History onBack={() => setPage('pos')} settings={settings} isAdmin={isAdmin} editBillTarget={editBillTarget} onEditDone={() => setEditBillTarget(null)} />
   if (page === 'settings') return <SettingsPage onBack={() => { refreshSettings(); setPage('pos') }} isAdmin={isAdmin} onLogout={onLogout} />
 
   const quickValues = tab === 'quail' ? QUICK_QUAIL : mode === 'tray' ? QUICK_TRAY : QUICK_LOOSE
@@ -362,6 +363,7 @@ function POS({ profile, onLogout }: { profile: Profile; onLogout: () => void }) 
       {undo && (
         <div className="undo-toast">
           <span>Bill {undo.bill.bill_no ? `#${undo.bill.bill_no}` : ''} saved — ₹{undo.bill.total}</span>
+          <button onClick={() => { setPage('history'); setUndo(null); if (undoTimer.current) clearInterval(undoTimer.current); setEditBillTarget(undo.bill) }}>Edit</button>
           <button onClick={handleUndo}>Undo ({undo.countdown}s)</button>
         </div>
       )}
@@ -453,9 +455,15 @@ function SettingsPage({ onBack, isAdmin: _, onLogout }: { onBack: () => void; is
   )
 }
 
-function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: Settings; isAdmin: boolean }) {
+function History({ onBack, settings, isAdmin, editBillTarget, onEditDone }: { onBack: () => void; settings: Settings; isAdmin: boolean; editBillTarget: Bill | null; onEditDone: () => void }) {
   const [bills, setBills] = useState<Bill[]>([])
   const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<Bill | null>(editBillTarget)
+  const [editQty, setEditQty] = useState('')
+  const [editRate, setEditRate] = useState('')
+  const [editTotal, setEditTotal] = useState('')
+  const [edits, setEdits] = useState<BillEdit[]>([])
+  const [showAudit, setShowAudit] = useState(false)
 
   const loadBills = () => {
     setLoading(true)
@@ -463,12 +471,42 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
   }
 
   useEffect(() => { loadBills() }, [])
+  useEffect(() => {
+    if (editBillTarget) startEdit(editBillTarget)
+  }, [editBillTarget])
+
+  const startEdit = (b: Bill) => {
+    setEditing(b)
+    setEditQty(b.qty.toString())
+    setEditRate(b.rate.toString())
+    setEditTotal(b.total.toString())
+  }
+
+  const cancelEdit = () => { setEditing(null); onEditDone() }
+
+  const saveEdit = async () => {
+    if (!editing) return
+    const newQty = Number(editQty) || editing.qty
+    const newRate = Number(editRate) || editing.rate
+    const newTotal = Number(editTotal) || (newQty * newRate)
+    if (newQty === editing.qty && newRate === editing.rate && newTotal === editing.total) { cancelEdit(); return }
+    try {
+      await editBill(editing, newQty, newRate, newTotal)
+      cancelEdit()
+      loadBills()
+    } catch (e: any) { alert('Edit failed: ' + e.message) }
+  }
+
+  const loadAudit = async () => {
+    const data = await getBillEdits()
+    setEdits(data)
+    setShowAudit(true)
+  }
 
   const pending = getPendingCount()
   const todayStr = new Date().toLocaleDateString('en-IN')
   const todayBills = bills.filter(b => new Date(b.created_at).toLocaleDateString('en-IN') === todayStr)
 
-  // Group by date
   const grouped: Record<string, Bill[]> = {}
   bills.forEach(b => {
     const date = new Date(b.created_at).toLocaleDateString('en-IN')
@@ -477,8 +515,7 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
   })
 
   const calcSummary = (dateBills: Bill[]) => {
-    let totalEggs = 0
-    let totalAmt = 0
+    let totalEggs = 0, totalAmt = 0
     dateBills.forEach(b => {
       totalAmt += b.total
       if (b.mode === 'loose') totalEggs += b.qty
@@ -491,25 +528,42 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
   const todaySummary = calcSummary(todayBills)
 
   const handleReprint = async (bill: Bill) => {
-    if (!isConnected()) {
-      alert('Connect printer first')
-      return
-    }
-    try {
-      await sendData(buildReceipt(bill, settings))
-    } catch (e: any) {
-      alert('Print failed: ' + e.message)
-    }
+    if (!isConnected()) { alert('Connect printer first'); return }
+    try { await sendData(buildReceipt(bill, settings)) } catch (e: any) { alert('Print failed: ' + e.message) }
   }
 
   if (loading) return <div className="app loading">Loading bills...</div>
+
+  if (showAudit && isAdmin) return (
+    <div className="app">
+      <div className="header">
+        <button onClick={() => setShowAudit(false)} className="btn-header">← Back</button>
+        <h1>Edit History</h1>
+      </div>
+      <div className="bill-list">
+        {edits.length === 0 && <p className="empty">No edits recorded</p>}
+        {edits.map(e => (
+          <div key={e.id} className="bill-row edit-row">
+            <div className="bill-no">Bill #{bills.find(b => b.id === e.bill_id)?.bill_no || e.bill_id}</div>
+            <div className="bill-time">{new Date(e.edited_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+            <div className="edit-detail">
+              <span className="edit-old">{e.old_qty}×₹{e.old_rate}=₹{e.old_total}</span>
+              <span className="edit-arrow">→</span>
+              <span className="edit-new">{e.new_qty}×₹{e.new_rate}=₹{e.new_total}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <div className="app">
       <div className="header">
         <button onClick={onBack} className="btn-header">← Back</button>
         <h1>Bills</h1>
-        <button onClick={loadBills} className="btn-header">↻ Refresh</button>
+        <button onClick={loadBills} className="btn-header">↻</button>
+        {isAdmin && <button onClick={loadAudit} className="btn-header">Audit</button>}
       </div>
       <div className="today-box">
         <div className="today-label">{isAdmin ? "Today's Total (All)" : "Today's Summary"}</div>
@@ -532,11 +586,26 @@ function History({ onBack, settings, isAdmin }: { onBack: () => void; settings: 
             </div>
             {dateBills.map(b => (
               <div key={b.id} className="bill-row">
-                <div className="bill-no">#{b.bill_no}</div>
-                <div className="bill-time">{new Date(b.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
-                <div className="bill-info">{b.qty} {b.type} {b.mode}</div>
-                <div className="bill-total">₹{b.total}</div>
-                <button onClick={() => handleReprint(b)} className="btn-reprint">Print</button>
+                {editing?.id === b.id ? (
+                  <div className="edit-inline">
+                    <input type="number" value={editQty} onChange={e => { setEditQty(e.target.value); setEditTotal((Number(e.target.value) * Number(editRate)).toString()) }} placeholder="Qty" className="edit-input" />
+                    <span>×₹</span>
+                    <input type="number" value={editRate} onChange={e => { setEditRate(e.target.value); setEditTotal((Number(editQty) * Number(e.target.value)).toString()) }} placeholder="Rate" className="edit-input" />
+                    <span>=₹</span>
+                    <input type="number" value={editTotal} onChange={e => setEditTotal(e.target.value)} placeholder="Total" className="edit-input" />
+                    <button onClick={saveEdit} className="btn-edit-save">✓</button>
+                    <button onClick={cancelEdit} className="btn-edit-cancel">✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bill-no">#{b.bill_no}</div>
+                    <div className="bill-time">{new Date(b.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
+                    <div className="bill-info">{b.qty} {b.type} {b.mode}</div>
+                    <div className="bill-total">₹{b.total}</div>
+                    <button onClick={() => startEdit(b)} className="btn-reprint">Edit</button>
+                    <button onClick={() => handleReprint(b)} className="btn-reprint">Print</button>
+                  </>
+                )}
               </div>
             ))}
           </div>
